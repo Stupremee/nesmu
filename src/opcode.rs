@@ -300,6 +300,6 @@ pub enum AddressMode {
     ZeropageYIndexed,
 }
 
-pub fn fetch_opcode(byte: u8) -> Option<Opcode> {
+pub fn get_opcode(byte: u8) -> Option<Opcode> {
     OPCODES.get(&byte).map(|op| op.clone())
 }
