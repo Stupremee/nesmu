@@ -28,14 +28,19 @@ impl Cpu {
     }
 
     pub fn run(&mut self) {
-        let code = self.instruction();
-        if code.is_none() {
+        if self.pc >= 0xFFFF {
             self.finished = true;
             return;
         }
-        let code = get_opcode(code.unwrap());
-        if code.is_none() {
+
+        let instruction = self.instruction();
+        if instruction.is_none() {
             self.finished = true;
+            return;
+        }
+        let code = get_opcode(instruction.unwrap());
+        if code.is_none() {
+            println!("Invalid instruction: 0x{:x}", instruction.unwrap());
             return;
         }
         println!("Opcode: {:?}", code);
@@ -48,11 +53,10 @@ impl Cpu {
     }
 
     pub fn read(&self, addr: usize) -> Option<u8> {
-        (match addr {
-            0x8000..=0xFFFF => self.rom.read(addr - 0x8000),
-            _ => self.memory.get(addr),
-        })
-        .map(|b| *b)
+        match addr {
+            0x8000..=0xFFFF => self.rom.prg_read(addr - 0x8000),
+            _ => self.memory.get(addr).map(|b| *b),
+        }
     }
 
     pub fn finished(&self) -> bool {
