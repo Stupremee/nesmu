@@ -1,12 +1,29 @@
 use crate::{opcode::get_opcode, rom::Rom};
 
-pub struct Cpu {
+pub struct Registers {
     a: u8,
     x: u8,
     y: u8,
     pc: u16,
     sp: u8,
     p: u8,
+}
+
+impl Registers {
+    pub fn new() -> Self {
+        Self {
+            a: 0,
+            x: 0,
+            y: 0,
+            pc: 0x8000,
+            sp: 0xFD,
+            p: 0x34,
+        }
+    }
+}
+
+pub struct Cpu {
+    reg: Registers,
     rom: Rom,
     memory: [u8; crate::MEMORY_SIZE],
     finished: bool,
@@ -15,12 +32,7 @@ pub struct Cpu {
 impl Cpu {
     pub fn new(rom: Rom) -> Self {
         Self {
-            a: 0,
-            x: 0,
-            y: 0,
-            pc: 0x8000,
-            sp: 0xFD,
-            p: 0x34,
+            reg: Registers::new(),
             rom,
             memory: [0; crate::MEMORY_SIZE],
             finished: false,
@@ -28,11 +40,6 @@ impl Cpu {
     }
 
     pub fn run(&mut self) {
-        if self.pc >= 0xFFFF {
-            self.finished = true;
-            return;
-        }
-
         let instruction = self.instruction();
         if instruction.is_none() {
             self.finished = true;
@@ -47,8 +54,8 @@ impl Cpu {
     }
 
     pub fn instruction(&mut self) -> Option<u8> {
-        let code = self.read(self.pc as usize);
-        self.pc += 1;
+        let code = self.read(self.reg.pc as usize);
+        self.reg.pc += 1;
         code
     }
 
