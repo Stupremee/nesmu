@@ -212,9 +212,9 @@ lazy_static! {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Opcode {
-    inst: Instruction,
-    addr: AddressMode,
-    cycles: u8,
+    pub inst: Instruction,
+    pub addr: AddressMode,
+    pub cycles: u8,
 }
 
 impl Opcode {

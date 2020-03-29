@@ -1,33 +1,36 @@
-use std::io::{self, prelude::*};
-
 #[derive(Debug)]
 pub struct Rom {
-    prg_rom: Vec<u8>,
-    chr_rom: Vec<u8>,
+    pub prg_rom: Vec<u8>,
+    pub chr_rom: Vec<u8>,
 }
 
 impl Rom {
-    pub fn load<R: Read>(read: &mut R) -> io::Result<Self> {
-        let mut header = [0u8; 16];
-        read.read(&mut header)?;
-        // TODO: Do something with header here
-        let prg_rom_size = header[4] as usize * 0x4000;
-        let chr_rom_size = header[5] as usize * 0x2000;
-
-        let mut prg_rom = vec![0u8; prg_rom_size];
-        read.read(&mut prg_rom)?;
-
-        let mut chr_rom = vec![0u8; chr_rom_size];
-        read.read(&mut chr_rom)?;
-
-        Ok(Self { prg_rom, chr_rom })
+    pub fn load(buf: &mut [u8]) -> Self {
+        let chr_rom_start = 0x10 + buf[4] as usize * 0x4000;
+        let chr_rom_end = chr_rom_start + buf[5] as usize * 0x2000;
+        Self {
+            prg_rom: buf[0x10..chr_rom_start].to_vec(),
+            chr_rom: buf[chr_rom_start..chr_rom_end].to_vec(),
+        }
     }
 
-    pub fn prg_read(&self, addr: usize) -> Option<u8> {
-        self.prg_rom.get(addr).map(|b| *b)
+    pub fn prg_readb(&self, addr: usize) -> u8 {
+        self.prg_rom[addr]
     }
 
-    pub fn chr_read(&self, addr: usize) -> Option<u8> {
-        self.chr_rom.get(addr).map(|b| *b)
+    pub fn chr_readb(&self, addr: usize) -> u8 {
+        self.chr_rom[addr]
+    }
+
+    pub fn prg_readw(&self, addr: usize) -> u16 {
+        let mut bytes = [0u8; 2];
+        bytes.copy_from_slice(&self.prg_rom[addr..= addr + 1]);
+        u16::from_le_bytes(bytes)
+    }
+
+    pub fn chr_readw(&self, addr: usize) -> u16 {
+        let mut bytes = [0u8; 2];
+        bytes.copy_from_slice(&self.chr_rom[addr..= addr + 1]);
+        u16::from_le_bytes(bytes)
     }
 }
