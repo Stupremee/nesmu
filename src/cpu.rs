@@ -57,10 +57,9 @@ impl Cpu {
     }
 
     pub fn readb(&self, addr: usize) -> u8 {
-        println!("Read from {:x}", addr);
         match addr {
             0x8000..=0xBFFF => self.rom.prg_readb(addr - 0x8000),
-            0xC000..=0xFFFF if self.rom.prg_rom.len()  <= 0x4000 => {
+            0xC000..=0xFFFF if self.rom.prg_rom.len() <= 0x4000 => {
                 self.rom.prg_readb(addr - 0xC000)
             },
             0xC000..=0xFFFF => self.rom.prg_readb(addr - 0x8000),

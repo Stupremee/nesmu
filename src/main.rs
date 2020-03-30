@@ -11,6 +11,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let rom = Rom::load(&mut buf);
     let mut cpu = Cpu::new(rom);
     cpu.init();
-    cpu.run();
+    loop {
+        cpu.run();
+    }
     Ok(())
 }

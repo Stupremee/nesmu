@@ -1,2 +1,2 @@
-Label:
+main:
   ldx #$20
