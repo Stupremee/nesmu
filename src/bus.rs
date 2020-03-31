@@ -4,6 +4,20 @@ pub struct Bus {
     ram: [u8; RAM_SIZE],
 }
 
+impl Default for Bus {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+use std::fmt;
+
+impl fmt::Debug for Bus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Bus {{ ram: REDACTED }}")
+    }
+}
+
 impl Bus {
     pub fn new() -> Self {
         Self {
