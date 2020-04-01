@@ -27,11 +27,22 @@ impl Default for Registers {
 pub struct Cpu {
     bus: Bus,
     reg: Registers,
+    cycles: u8,
 }
 
 impl Cpu {
     pub fn new(bus: Bus, reg: Registers) -> Self {
-        Self { bus, reg }
+        Self {
+            bus,
+            reg,
+            cycles: 0,
+        }
+    }
+
+    pub fn clock(&mut self) {
+        if self.cycles > 0 {
+            self.cycles -= 1;
+        }
     }
 
     fn read_word(&self, addr: u16) -> u16 {
