@@ -140,13 +140,8 @@ impl Cpu {
     }
 
     fn fetch_relative(&mut self) -> u16 {
-        let base = self.fetch() as u16;
-
-        if base < 0x80 {
-            base + self.reg.pc
-        } else {
-            base + self.reg.pc - 256
-        }
+        let base = self.fetch() as i8;
+        (self.reg.pc as i32 + base as i32) as u16
     }
 
     fn fetch_zeropage(&mut self) -> u16 {
