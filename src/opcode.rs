@@ -15,7 +15,7 @@ const CYCLES: [u8; 256] = [
     2, 6, 3, 8, 3, 3, 5, 5, 2, 2, 2, 2, 4, 4, 6, 6, 2, 5, 2, 8, 4, 4, 6, 6, 2, 4, 2, 7, 4, 4, 7, 7,
 ];
 
-const OPCODES: [Opcode; 256] = [
+pub const OPCODES: [Opcode; 256] = [
     // ==========================
     opcode!(BRK, Implied, 0),
     opcode!(ORA, IndirectXIndexed, 0x01),
