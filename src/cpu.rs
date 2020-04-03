@@ -2,6 +2,19 @@ use crate::bus::Bus;
 use crate::opcode::{self, AddressMode, Opcode};
 
 #[derive(Debug)]
+#[repr(u8)]
+pub enum StatusFlag {
+    Carry = 1 << 0,
+    Zero = 1 << 1,
+    NoInterrupts = 1 << 2,
+    Decimal = 1 << 3,
+    Break = 1 << 4,
+    Unused = 1 << 5,
+    Overflow = 1 << 6,
+    Negative = 1 << 7,
+}
+
+#[derive(Debug)]
 pub struct Registers {
     a: u8,
     x: u8,
@@ -9,6 +22,20 @@ pub struct Registers {
     pc: u16,
     sp: u8,
     p: u8,
+}
+
+impl Registers {
+    pub fn set_flag(&mut self, flag: StatusFlag, mode: bool) {
+        if mode {
+            self.p |= flag as u8;
+        } else {
+            self.p &= !(flag as u8);
+        }
+    }
+
+    pub fn get_flag(&mut self, flag: StatusFlag) -> bool {
+        (self.p & flag as u8) != 0
+    }
 }
 
 impl Default for Registers {
@@ -21,6 +48,31 @@ impl Default for Registers {
             sp: 0,
             p: 0,
         }
+    }
+}
+
+#[derive(Debug)]
+pub enum Operand {
+    Accumulator,
+    Address(u16),
+    Implied,
+}
+
+impl Operand {
+    pub fn read(&self, cpu: &Cpu) -> Option<u8> {
+        match self {
+            Operand::Accumulator => Some(cpu.reg.a),
+            Operand::Address(addr) => Some(cpu.read(*addr)),
+            Operand::Implied => None,
+        }
+    }
+
+    pub fn write(&self, cpu: &mut Cpu, val: u8) {
+        match self {
+            Operand::Accumulator => cpu.reg.a = val,
+            Operand::Address(addr) => cpu.write(*addr, val),
+            Operand::Implied => {},
+        };
     }
 }
 
@@ -53,21 +105,21 @@ impl Cpu {
         let operand = self.fetch_operand(opcode);
     }
 
-    fn fetch_operand(&mut self, op: &Opcode) -> u16 {
+    fn fetch_operand(&mut self, op: &Opcode) -> Operand {
         match op.addr {
-            AddressMode::Accumulator => self.reg.a as u16,
-            AddressMode::Absolute => self.fetch_word(),
-            AddressMode::AbsoluteXIndexed => self.fetch_absolute(self.reg.x),
-            AddressMode::AbsoluteYIndexed => self.fetch_absolute(self.reg.y),
-            AddressMode::Immediate => self.fetch_immediate(),
-            AddressMode::Implied => 0x0,
-            AddressMode::Indirect => self.fetch_indirect(),
-            AddressMode::IndirectXIndexed => self.fetch_indirect_x(),
-            AddressMode::IndirectYIndexed => self.fetch_indirect_y(),
-            AddressMode::Relative => self.fetch_relative(),
-            AddressMode::Zeropage => self.fetch_zeropage(),
-            AddressMode::ZeropageXIndexed => self.fetch_zeropage_x(),
-            AddressMode::ZeropageYIndexed => self.fetch_zeropage_y(),
+            AddressMode::Accumulator => Operand::Accumulator,
+            AddressMode::Absolute => Operand::Address(self.fetch_word()),
+            AddressMode::AbsoluteXIndexed => Operand::Address(self.fetch_absolute(self.reg.x)),
+            AddressMode::AbsoluteYIndexed => Operand::Address(self.fetch_absolute(self.reg.y)),
+            AddressMode::Immediate => Operand::Address(self.fetch_immediate()),
+            AddressMode::Implied => Operand::Implied,
+            AddressMode::Indirect => Operand::Address(self.fetch_indirect()),
+            AddressMode::IndirectXIndexed => Operand::Address(self.fetch_indirect_x()),
+            AddressMode::IndirectYIndexed => Operand::Address(self.fetch_indirect_y()),
+            AddressMode::Relative => Operand::Address(self.fetch_relative()),
+            AddressMode::Zeropage => Operand::Address(self.fetch_zeropage()),
+            AddressMode::ZeropageXIndexed => Operand::Address(self.fetch_zeropage_x()),
+            AddressMode::ZeropageYIndexed => Operand::Address(self.fetch_zeropage_y()),
         }
     }
 
@@ -76,13 +128,12 @@ impl Cpu {
         self.reg.pc += 1;
         result
     }
-    
+
     fn fetch_word(&mut self) -> u16 {
         let lower = self.fetch() as u16;
         let upper = self.fetch() as u16;
         (upper << 8) | lower
     }
-
 
     fn fetch_immediate(&mut self) -> u16 {
         self.reg.pc += 1;
@@ -166,5 +217,38 @@ impl Cpu {
 
     fn write(&mut self, addr: u16, val: u8) {
         self.bus.write(addr, val);
+    }
+
+    fn adc(&mut self, op: Operand) {
+        let fetched = op.read(self).unwrap() as u16;
+        let val = fetched + self.reg.a as u16 + self.reg.get_flag(StatusFlag::Carry) as u16;
+
+        self.reg.set_flag(StatusFlag::Carry, val > 255);
+        self.reg.set_flag(StatusFlag::Zero, (val & 0xFF) == 0);
+        self.reg.set_flag(StatusFlag::Overflow, (!(self.reg.a as u16 ^ fetched) & (self.reg.a as u16 ^ val) & 0x80) != 0);
+        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
+
+        op.write(self, (val & 0xFF) as u8);
+    }
+
+    fn and(&mut self, op: Operand) {
+        let val = op.read(self).unwrap();
+        let val = self.reg.a & val;
+
+        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
+
+        op.write(self, val);
+    }
+
+    fn asl(&mut self, op: Operand) {
+        let fetched = op.read(self).unwrap();
+        let val = fetched << 1;
+
+        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
+        self.reg.set_flag(StatusFlag::Carry, fetched & 0x80 != 0);
+
+        op.write(self, val);
     }
 }
