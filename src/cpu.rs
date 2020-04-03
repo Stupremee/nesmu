@@ -1,6 +1,8 @@
 use crate::bus::Bus;
 use crate::opcode::{self, AddressMode, Opcode};
 
+const STACK_ADDRESS: u16 = 0x0100;
+
 #[derive(Debug)]
 #[repr(u8)]
 pub enum StatusFlag {
@@ -229,6 +231,16 @@ impl Cpu {
         self.bus.write(addr, val);
     }
 
+    fn push(&mut self, val: u8) {
+        self.write(STACK_ADDRESS + self.reg.sp as u16, val);
+        self.reg.sp -= 1;
+    }
+
+    fn pop(&mut self) -> u8 {
+        self.reg.sp += 1;
+        self.read(STACK_ADDRESS + self.reg.sp as u16)
+    }
+
     fn adc(&mut self, op: Operand) {
         let fetched = op.read(self).unwrap() as u16;
         let val = fetched + self.reg.a as u16 + self.reg.get_flag(StatusFlag::Carry) as u16;
@@ -318,7 +330,18 @@ impl Cpu {
     }
 
     fn brk(&mut self, op: Operand) {
-        unimplemented!();
+        self.reg.set_flag(StatusFlag::NoInterrupts, true);
+
+        self.push((self.reg.pc >> 8) as u8);
+        self.push((self.reg.pc & 0xFF) as u8);
+
+        self.reg.set_flag(StatusFlag::Break, true);
+        self.push(self.reg.p);
+        self.reg.set_flag(StatusFlag::Break, false);
+
+        let lower = self.read(0xFFFE) as u16;
+        let upper = self.read(0xFFFF) as u16;
+        self.reg.pc = (upper << 8) | lower
     }
 
     fn bvc(&mut self, op: Operand) {
@@ -432,7 +455,10 @@ impl Cpu {
     }
 
     fn jsr(&mut self, op: Operand) {
-        unimplemented!();
+        self.push((self.reg.pc >> 8) as u8);
+        self.push((self.reg.pc & 0xFF) as u8);
+
+        self.reg.pc = op.absolute_addr(self).unwrap();
     }
 
     fn ld_reg(&mut self, op: Operand, reg: Operand) {
@@ -483,19 +509,23 @@ impl Cpu {
     }
 
     fn pha(&mut self) {
-        unimplemented!();
+        self.push(self.reg.a);
     }
 
     fn php(&mut self) {
-        unimplemented!();
+        self.push(self.reg.p);
     }
 
     fn pla(&mut self) {
-        unimplemented!();
+        let val = self.pop();
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
+        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
+        self.reg.a = val;
     }
 
     fn plp(&mut self) {
-        unimplemented!();
+        let val = self.pop();
+        self.reg.p = val;
     }
 
     fn rol(&mut self, op: Operand) {
@@ -521,11 +551,17 @@ impl Cpu {
     }
 
     fn rti(&mut self) {
-        unimplemented!();
+        self.reg.p = self.pop();
+
+        let lower = self.pop() as u16;
+        let upper = self.pop() as u16;
+        self.reg.pc = (upper << 8) | lower;
     }
 
     fn rts(&mut self) {
-        unimplemented!();
+        let lower = self.pop() as u16;
+        let upper = self.pop() as u16;
+        self.reg.pc = (upper << 8) | lower;
     }
 
     fn sbc(&mut self, op: Operand) {
@@ -535,7 +571,10 @@ impl Cpu {
 
         self.reg.set_flag(StatusFlag::Carry, val & 0xFF00 != 0);
         self.reg.set_flag(StatusFlag::Zero, val & 0xFF == 0);
-        self.reg.set_flag(StatusFlag::Overflow, (val ^ self.reg.a as u16) & (val ^ fetched) & 0x80 != 0);
+        self.reg.set_flag(
+            StatusFlag::Overflow,
+            (val ^ self.reg.a as u16) & (val ^ fetched) & 0x80 != 0,
+        );
         self.reg.set_flag(StatusFlag::Negative, (val & 0x80) != 0);
 
         self.reg.a = (val & 0xFF) as u8;
