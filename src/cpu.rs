@@ -540,4 +540,65 @@ impl Cpu {
 
         self.reg.a = (val & 0xFF) as u8;
     }
+
+    fn sec(&mut self) {
+        self.reg.set_flag(StatusFlag::Carry, true);
+    }
+
+    fn sed(&mut self) {
+        self.reg.set_flag(StatusFlag::Decimal, true);
+    }
+
+    fn sei(&mut self) {
+        self.reg.set_flag(StatusFlag::NoInterrupts, true);
+    }
+
+    fn sta(&mut self, op: Operand) {
+        let val = self.reg.a;
+        op.write(self, val);
+    }
+
+    fn stx(&mut self, op: Operand) {
+        let val = self.reg.x;
+        op.write(self, val);
+    }
+
+    fn sty(&mut self, op: Operand) {
+        let val = self.reg.y;
+        op.write(self, val);
+    }
+
+    fn tax(&mut self) {
+        self.reg.x = self.reg.a;
+        self.reg.set_flag(StatusFlag::Zero, self.reg.x == 0);
+        self.reg.set_flag(StatusFlag::Zero, self.reg.x & 0x80 != 1);
+    }
+
+    fn tay(&mut self) {
+        self.reg.y = self.reg.a;
+        self.reg.set_flag(StatusFlag::Zero, self.reg.y == 0);
+        self.reg.set_flag(StatusFlag::Zero, self.reg.y & 0x80 != 1);
+    }
+
+    fn tsx(&mut self) {
+        self.reg.x = self.reg.sp;
+        self.reg.set_flag(StatusFlag::Zero, self.reg.x == 0);
+        self.reg.set_flag(StatusFlag::Zero, self.reg.x & 0x80 != 1);
+    }
+
+    fn txa(&mut self) {
+        self.reg.a = self.reg.x;
+        self.reg.set_flag(StatusFlag::Zero, self.reg.a == 0);
+        self.reg.set_flag(StatusFlag::Zero, self.reg.a & 0x80 != 1);
+    }
+
+    fn txs(&mut self) {
+        self.reg.sp = self.reg.x;
+    }
+
+    fn tya(&mut self) {
+        self.reg.a = self.reg.y;
+        self.reg.set_flag(StatusFlag::Zero, self.reg.a == 0);
+        self.reg.set_flag(StatusFlag::Zero, self.reg.a & 0x80 != 1);
+    }
 }
