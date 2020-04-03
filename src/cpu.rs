@@ -54,7 +54,10 @@ impl Default for Registers {
 #[derive(Debug)]
 pub enum Operand {
     Accumulator,
+    XRegister,
+    YRegister,
     Address(u16),
+    Relative(i8),
     Implied,
 }
 
@@ -63,16 +66,28 @@ impl Operand {
         match self {
             Operand::Accumulator => Some(cpu.reg.a),
             Operand::Address(addr) => Some(cpu.read(*addr)),
-            Operand::Implied => None,
+            Operand::XRegister => Some(cpu.reg.x),
+            Operand::YRegister => Some(cpu.reg.y),
+            _ => None,
         }
     }
 
     pub fn write(&self, cpu: &mut Cpu, val: u8) {
         match self {
             Operand::Accumulator => cpu.reg.a = val,
+            Operand::XRegister => cpu.reg.x = val,
+            Operand::YRegister => cpu.reg.y = val,
             Operand::Address(addr) => cpu.write(*addr, val),
-            Operand::Implied => {},
+            _ => {}
         };
+    }
+
+    pub fn absolute_addr(&self, cpu: &Cpu) -> Option<u16> {
+        match self {
+            Operand::Address(addr) => Some(*addr),
+            Operand::Relative(addr) => Some((cpu.reg.pc as i32 + *addr as i32) as u16),
+            _ => None,
+        }
     }
 }
 
@@ -116,7 +131,7 @@ impl Cpu {
             AddressMode::Indirect => Operand::Address(self.fetch_indirect()),
             AddressMode::IndirectXIndexed => Operand::Address(self.fetch_indirect_x()),
             AddressMode::IndirectYIndexed => Operand::Address(self.fetch_indirect_y()),
-            AddressMode::Relative => Operand::Address(self.fetch_relative()),
+            AddressMode::Relative => Operand::Relative(self.fetch() as i8),
             AddressMode::Zeropage => Operand::Address(self.fetch_zeropage()),
             AddressMode::ZeropageXIndexed => Operand::Address(self.fetch_zeropage_x()),
             AddressMode::ZeropageYIndexed => Operand::Address(self.fetch_zeropage_y()),
@@ -190,11 +205,6 @@ impl Cpu {
         addr
     }
 
-    fn fetch_relative(&mut self) -> u16 {
-        let base = self.fetch() as i8;
-        (self.reg.pc as i32 + base as i32) as u16
-    }
-
     fn fetch_zeropage(&mut self) -> u16 {
         self.fetch() as u16 & 0xFF
     }
@@ -225,7 +235,10 @@ impl Cpu {
 
         self.reg.set_flag(StatusFlag::Carry, val > 255);
         self.reg.set_flag(StatusFlag::Zero, (val & 0xFF) == 0);
-        self.reg.set_flag(StatusFlag::Overflow, (!(self.reg.a as u16 ^ fetched) & (self.reg.a as u16 ^ val) & 0x80) != 0);
+        self.reg.set_flag(
+            StatusFlag::Overflow,
+            (!(self.reg.a as u16 ^ fetched) & (self.reg.a as u16 ^ val) & 0x80) != 0,
+        );
         self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
 
         op.write(self, (val & 0xFF) as u8);
@@ -250,5 +263,281 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Carry, fetched & 0x80 != 0);
 
         op.write(self, val);
+    }
+
+    fn branch(&mut self, op: Operand, condition: bool) {
+        if condition {
+            self.cycles += 1;
+            let addr = op.absolute_addr(self).unwrap();
+
+            if (addr & 0xFF00) != (self.reg.pc & 0xFF00) {
+                self.cycles += 1;
+            }
+
+            self.reg.pc = addr;
+        }
+    }
+
+    fn bcc(&mut self, op: Operand) {
+        let condition = !self.reg.get_flag(StatusFlag::Carry);
+        self.branch(op, condition);
+    }
+
+    fn bcs(&mut self, op: Operand) {
+        let condition = self.reg.get_flag(StatusFlag::Carry);
+        self.branch(op, condition);
+    }
+
+    fn beq(&mut self, op: Operand) {
+        let condition = self.reg.get_flag(StatusFlag::Zero);
+        self.branch(op, condition);
+    }
+
+    fn bit(&mut self, op: Operand) {
+        let fetched = op.read(self).unwrap();
+        let val = fetched & self.reg.a;
+
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
+        self.reg.set_flag(StatusFlag::Overflow, fetched & 0x40 != 0);
+        self.reg.set_flag(StatusFlag::Negative, fetched & 0x80 != 0);
+    }
+
+    fn bmi(&mut self, op: Operand) {
+        let condition = self.reg.get_flag(StatusFlag::Negative);
+        self.branch(op, condition);
+    }
+
+    fn bne(&mut self, op: Operand) {
+        let condition = !self.reg.get_flag(StatusFlag::Zero);
+        self.branch(op, condition);
+    }
+
+    fn bpl(&mut self, op: Operand) {
+        let condition = !self.reg.get_flag(StatusFlag::Negative);
+        self.branch(op, condition);
+    }
+
+    fn brk(&mut self, op: Operand) {
+        unimplemented!();
+    }
+
+    fn bvc(&mut self, op: Operand) {
+        let condition = !self.reg.get_flag(StatusFlag::Overflow);
+        self.branch(op, condition);
+    }
+
+    fn bvs(&mut self, op: Operand) {
+        let condition = self.reg.get_flag(StatusFlag::Overflow);
+        self.branch(op, condition);
+    }
+
+    fn clc(&mut self) {
+        self.reg.set_flag(StatusFlag::Carry, false);
+    }
+
+    fn cld(&mut self) {
+        self.reg.set_flag(StatusFlag::Decimal, false);
+    }
+
+    fn cli(&mut self) {
+        self.reg.set_flag(StatusFlag::NoInterrupts, false);
+    }
+
+    fn clv(&mut self) {
+        self.reg.set_flag(StatusFlag::Overflow, false);
+    }
+
+    fn compare(&mut self, op: Operand, reg: Operand) {
+        let val = op.read(self).unwrap();
+        let reg = op.read(self).unwrap();
+
+        let diff = reg as i16 - val as i16;
+        if diff == 0 {
+            self.reg.set_flag(StatusFlag::Carry, true);
+            self.reg.set_flag(StatusFlag::Zero, true);
+        } else if diff > 0 {
+            self.reg.set_flag(StatusFlag::Carry, true);
+        } else if val & 0x80 != 0 {
+            self.reg.set_flag(StatusFlag::Negative, true);
+        }
+    }
+
+    #[inline]
+    fn cmp(&mut self, op: Operand) {
+        self.compare(op, Operand::Accumulator);
+    }
+
+    #[inline]
+    fn cpx(&mut self, op: Operand) {
+        self.compare(op, Operand::XRegister);
+    }
+
+    #[inline]
+    fn cpy(&mut self, op: Operand) {
+        self.compare(op, Operand::YRegister);
+    }
+
+    fn dec(&mut self, op: Operand) {
+        let val = op.read(self).unwrap() as i16;
+        let val = val - 1;
+
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
+        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
+
+        op.write(self, val as u8);
+    }
+
+    #[inline]
+    fn dex(&mut self) {
+        self.dec(Operand::XRegister);
+    }
+
+    #[inline]
+    fn dey(&mut self) {
+        self.dec(Operand::YRegister);
+    }
+
+    fn eor(&mut self, op: Operand) {
+        let val = op.read(self).unwrap();
+        let val = self.reg.a ^ val;
+
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
+        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
+
+        self.reg.a = val;
+    }
+
+    fn inc(&mut self, op: Operand) {
+        let val = op.read(self).unwrap() as i16;
+        let val = val + 1;
+
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
+        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
+
+        op.write(self, val as u8);
+    }
+
+    #[inline]
+    fn inx(&mut self) {
+        self.dec(Operand::XRegister);
+    }
+
+    #[inline]
+    fn iny(&mut self) {
+        self.dec(Operand::YRegister);
+    }
+
+    fn jmp(&mut self, op: Operand) {
+        self.reg.pc = op.absolute_addr(self).unwrap();
+    }
+
+    fn jsr(&mut self, op: Operand) {
+        unimplemented!();
+    }
+
+    fn ld_reg(&mut self, op: Operand, reg: Operand) {
+        let val = op.read(self).unwrap();
+
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
+        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
+
+        reg.write(self, val);
+    }
+
+    #[inline]
+    fn lda(&mut self, op: Operand) {
+        self.ld_reg(op, Operand::Accumulator);
+    }
+
+    #[inline]
+    fn ldx(&mut self, op: Operand) {
+        self.ld_reg(op, Operand::XRegister);
+    }
+
+    #[inline]
+    fn ldy(&mut self, op: Operand) {
+        self.ld_reg(op, Operand::YRegister);
+    }
+
+    fn lsr(&mut self, op: Operand) {
+        let fetched = op.read(self).unwrap();
+        let val = fetched >> 1;
+
+        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
+        self.reg.set_flag(StatusFlag::Carry, fetched & 0x1 != 0);
+
+        op.write(self, val);
+    }
+
+    fn nop(&mut self) {}
+
+    fn ora(&mut self, op: Operand) {
+        let val = op.read(self).unwrap();
+        let val = self.reg.a | val;
+
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
+        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
+
+        self.reg.a = val;
+    }
+
+    fn pha(&mut self) {
+        unimplemented!();
+    }
+
+    fn php(&mut self) {
+        unimplemented!();
+    }
+
+    fn pla(&mut self) {
+        unimplemented!();
+    }
+
+    fn plp(&mut self) {
+        unimplemented!();
+    }
+
+    fn rol(&mut self, op: Operand) {
+        let val = op.read(self).unwrap() as u16;
+        let val = (val << 1) | self.reg.get_flag(StatusFlag::Carry) as u16;
+
+        self.reg.set_flag(StatusFlag::Carry, val & 0xFF00 != 0);
+        self.reg.set_flag(StatusFlag::Zero, val & 0xFF == 0);
+        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
+
+        op.write(self, val as u8);
+    }
+
+    fn ror(&mut self, op: Operand) {
+        let val = op.read(self).unwrap() as u16;
+        let val = (self.reg.get_flag(StatusFlag::Carry) as u16) << 1 | val as u16 >> 1;
+
+        self.reg.set_flag(StatusFlag::Carry, val & 0x01 != 0);
+        self.reg.set_flag(StatusFlag::Zero, val & 0xFF == 0);
+        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
+
+        op.write(self, val as u8);
+    }
+
+    fn rti(&mut self) {
+        unimplemented!();
+    }
+
+    fn rts(&mut self) {
+        unimplemented!();
+    }
+
+    fn sbc(&mut self, op: Operand) {
+        let fetched = op.read(self).unwrap() as u16;
+        let fetched = fetched ^ 0xFF;
+        let val = self.reg.a as u16 + fetched + self.reg.get_flag(StatusFlag::Zero) as u16;
+
+        self.reg.set_flag(StatusFlag::Carry, val & 0xFF00 != 0);
+        self.reg.set_flag(StatusFlag::Zero, val & 0xFF == 0);
+        self.reg.set_flag(StatusFlag::Overflow, (val ^ self.reg.a as u16) & (val ^ fetched) & 0x80 != 0);
+        self.reg.set_flag(StatusFlag::Negative, (val & 0x80) != 0);
+
+        self.reg.a = (val & 0xFF) as u8;
     }
 }
