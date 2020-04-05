@@ -423,7 +423,7 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::NoInterrupts, true);
 
         self.push((self.reg.pc >> 8) as u8);
-        self.push((self.reg.pc & 0xFF) as u8);
+        self.push(self.reg.pc as u8);
 
         self.reg.set_flag(StatusFlag::Break, true);
         self.push(self.reg.p);
@@ -546,7 +546,7 @@ impl Cpu {
 
     fn jsr(&mut self, op: Operand) {
         self.push((self.reg.pc >> 8) as u8);
-        self.push((self.reg.pc & 0xFF) as u8);
+        self.push(self.reg.pc as u8);
 
         self.reg.pc = op.absolute_addr(self).unwrap();
     }
@@ -667,7 +667,7 @@ impl Cpu {
         );
         self.reg.set_flag(StatusFlag::Negative, (val & 0x80) != 0);
 
-        self.reg.a = (val & 0xFF) as u8;
+        self.reg.a = val as u8;
     }
 
     fn sec(&mut self) {
