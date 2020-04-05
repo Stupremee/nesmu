@@ -1,5 +1,5 @@
 use crate::bus::Bus;
-use crate::opcode::{self, AddressMode, Opcode};
+use crate::opcode::{self, AddressMode, Instruction, Opcode};
 
 const STACK_ADDRESS: u16 = 0x0100;
 
@@ -18,12 +18,12 @@ pub enum StatusFlag {
 
 #[derive(Debug)]
 pub struct Registers {
-    a: u8,
-    x: u8,
-    y: u8,
-    pc: u16,
-    sp: u8,
-    p: u8,
+    pub a: u8,
+    pub x: u8,
+    pub y: u8,
+    pub pc: u16,
+    pub sp: u8,
+    pub p: u8,
 }
 
 impl Registers {
@@ -47,8 +47,8 @@ impl Default for Registers {
             x: 0,
             y: 0,
             pc: 0,
-            sp: 0,
-            p: 0,
+            sp: 0xFD,
+            p: 0x34,
         }
     }
 }
@@ -95,9 +95,9 @@ impl Operand {
 
 #[derive(Default, Debug)]
 pub struct Cpu {
-    bus: Bus,
-    reg: Registers,
-    cycles: u8,
+    pub bus: Bus,
+    pub reg: Registers,
+    pub cycles: u8,
 }
 
 impl Cpu {
@@ -112,14 +112,82 @@ impl Cpu {
     pub fn clock(&mut self) {
         if self.cycles > 0 {
             self.cycles -= 1;
+            return;
         }
 
         let opcode = self.fetch();
-        let opcode = &opcode::OPCODES[opcode as usize];
+        let (opcode, raw_opcode) = (&opcode::OPCODES[opcode as usize], opcode);
 
         self.cycles = opcode.cycles;
 
+        println!("Processing opcode: {:?}. reg = {:?}", opcode, self.reg);
         let operand = self.fetch_operand(opcode);
+        self.execute_op(opcode, operand, raw_opcode);
+    }
+
+    fn execute_op(&mut self, code: &Opcode, op: Operand, raw: u8) {
+        match code.inst {
+            Instruction::ADC => self.adc(op),
+            Instruction::AND => self.and(op),
+            Instruction::ASL => self.asl(op),
+            Instruction::BCC => self.bcc(op),
+            Instruction::BCS => self.bcs(op),
+            Instruction::BEQ => self.beq(op),
+            Instruction::BIT => self.bit(op),
+            Instruction::BMI => self.bmi(op),
+            Instruction::BNE => self.bne(op),
+            Instruction::BPL => self.bpl(op),
+            Instruction::BRK => self.brk(op),
+            Instruction::BVC => self.bvc(op),
+            Instruction::BVS => self.bvs(op),
+            Instruction::CLC => self.clc(),
+            Instruction::CLD => self.cld(),
+            Instruction::CLI => self.cli(),
+            Instruction::CLV => self.clv(),
+            Instruction::CMP => self.cmp(op),
+            Instruction::CPX => self.cpx(op),
+            Instruction::CPY => self.cpy(op),
+            Instruction::DEC => self.dec(op),
+            Instruction::DEX => self.dex(),
+            Instruction::DEY => self.dey(),
+            Instruction::EOR => self.eor(op),
+            Instruction::INC => self.inc(op),
+            Instruction::INX => self.inx(),
+            Instruction::INY => self.iny(),
+            Instruction::JMP => self.jmp(op),
+            Instruction::JSR => self.jsr(op),
+            Instruction::LDA => self.lda(op),
+            Instruction::LDX => self.ldx(op),
+            Instruction::LDY => self.ldy(op),
+            Instruction::LSR => self.lsr(op),
+            Instruction::NOP => self.nop(),
+            Instruction::ORA => self.ora(op),
+            Instruction::PHA => self.pha(),
+            Instruction::PHP => self.php(),
+            Instruction::PLA => self.pla(),
+            Instruction::PLP => self.plp(),
+            Instruction::ROL => self.rol(op),
+            Instruction::ROR => self.ror(op),
+            Instruction::RTI => self.rti(),
+            Instruction::RTS => self.rts(),
+            Instruction::SBC => self.sbc(op),
+            Instruction::SEC => self.sec(),
+            Instruction::SED => self.sed(),
+            Instruction::SEI => self.sei(),
+            Instruction::STA => self.sta(op),
+            Instruction::STX => self.stx(op),
+            Instruction::STY => self.sty(op),
+            Instruction::TAX => self.tax(),
+            Instruction::TAY => self.tay(),
+            Instruction::TSX => self.tsx(),
+            Instruction::TXA => self.txa(),
+            Instruction::TXS => self.txs(),
+            Instruction::TYA => self.tya(),
+            Instruction::XXX => panic!(
+                "Invalid opcode received. Opcode = {:?} Raw = {:x}",
+                code, raw
+            ),
+        };
     }
 
     fn fetch_operand(&mut self, op: &Opcode) -> Operand {
@@ -140,6 +208,28 @@ impl Cpu {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.reg.a = 0;
+        self.reg.x = 0;
+        self.reg.y = 0;
+        self.reg.sp = 0xFD;
+        self.reg.p = 0x0;
+
+        self.reg.set_flag(StatusFlag::Unused, true);
+
+        let addr = 0xFFFC;
+        let lower = self.read(addr) as u16;
+        let upper = self.read(addr + 1) as u16;
+
+        self.reg.pc = (upper << 8) | lower;
+
+        self.cycles = 8;
+    }
+
+    pub fn complete(&self) -> bool {
+        self.cycles == 0
+    }
+
     fn fetch(&mut self) -> u8 {
         let result = self.read(self.reg.pc);
         self.reg.pc += 1;
@@ -154,7 +244,7 @@ impl Cpu {
 
     fn fetch_immediate(&mut self) -> u16 {
         self.reg.pc += 1;
-        self.reg.pc
+        self.reg.pc - 1
     }
 
     fn fetch_absolute(&mut self, offset: u8) -> u16 {

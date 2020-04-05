@@ -1,4 +1,5 @@
-const RAM_SIZE: usize = 0x4000;
+// const RAM_SIZE: usize = 0x4000;
+const RAM_SIZE: usize = 0x10000;
 
 pub struct Bus {
     ram: [u8; RAM_SIZE],
@@ -23,6 +24,10 @@ impl Bus {
         Self {
             ram: [0u8; RAM_SIZE],
         }
+    }
+
+    pub fn from_ram(ram: [u8; RAM_SIZE]) -> Self {
+        Self { ram }
     }
 
     pub fn read_word(&self, addr: u16) -> u16 {
