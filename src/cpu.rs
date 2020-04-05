@@ -215,8 +215,6 @@ impl Cpu {
         self.reg.sp = 0xFD;
         self.reg.p = 0x0;
 
-        self.reg.set_flag(StatusFlag::Unused, true);
-
         let addr = 0xFFFC;
         let lower = self.read(addr) as u16;
         let upper = self.read(addr + 1) as u16;
@@ -226,8 +224,18 @@ impl Cpu {
         self.cycles = 8;
     }
 
-    pub fn complete(&self) -> bool {
-        self.cycles == 0
+    fn irq(&mut self) {
+        if self.reg.get_flag(StatusFlag::NoInterrupts) {
+            return;
+        }
+        self.push_word(self.reg.pc);
+
+        self.reg.set_flag(StatusFlag::Break, false);
+        self.reg.set_flag(StatusFlag::NoInterrupts, false);
+        self.push(self.reg.p);
+
+        self.reg.pc = self.read_word(0xFFFE);
+        self.cycles = 7;
     }
 
     fn fetch(&mut self) -> u8 {
@@ -326,9 +334,20 @@ impl Cpu {
         self.reg.sp -= 1;
     }
 
+    fn push_word(&mut self, val: u16) {
+        self.push((val >> 8) as u8);
+        self.push(val as u8);
+    }
+
     fn pop(&mut self) -> u8 {
         self.reg.sp += 1;
         self.read(STACK_ADDRESS + self.reg.sp as u16)
+    }
+
+    fn pop_word(&mut self) -> u16 {
+        let lower = self.pop() as u16;
+        let upper = self.pop() as u16;
+        (upper << 8) | lower
     }
 
     fn adc(&mut self, op: Operand) {
@@ -422,8 +441,7 @@ impl Cpu {
     fn brk(&mut self, op: Operand) {
         self.reg.set_flag(StatusFlag::NoInterrupts, true);
 
-        self.push((self.reg.pc >> 8) as u8);
-        self.push(self.reg.pc as u8);
+        self.push_word(self.reg.pc);
 
         self.reg.set_flag(StatusFlag::Break, true);
         self.push(self.reg.p);
@@ -545,9 +563,7 @@ impl Cpu {
     }
 
     fn jsr(&mut self, op: Operand) {
-        self.push((self.reg.pc >> 8) as u8);
-        self.push(self.reg.pc as u8);
-
+        self.push_word(self.reg.pc);
         self.reg.pc = op.absolute_addr(self).unwrap();
     }
 
@@ -642,16 +658,11 @@ impl Cpu {
 
     fn rti(&mut self) {
         self.reg.p = self.pop();
-
-        let lower = self.pop() as u16;
-        let upper = self.pop() as u16;
-        self.reg.pc = (upper << 8) | lower;
+        self.reg.pc = self.pop_word();
     }
 
     fn rts(&mut self) {
-        let lower = self.pop() as u16;
-        let upper = self.pop() as u16;
-        self.reg.pc = (upper << 8) | lower;
+        self.reg.pc = self.pop_word();
     }
 
     fn sbc(&mut self, op: Operand) {
