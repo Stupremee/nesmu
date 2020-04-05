@@ -343,7 +343,7 @@ impl Cpu {
         );
         self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
 
-        op.write(self, (val & 0xFF) as u8);
+        op.write(self, val as u8);
     }
 
     fn and(&mut self, op: Operand) {
