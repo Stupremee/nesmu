@@ -216,15 +216,12 @@ impl Cpu {
         self.reg.p = 0x0;
 
         let addr = 0xFFFC;
-        let lower = self.read(addr) as u16;
-        let upper = self.read(addr + 1) as u16;
-
-        self.reg.pc = (upper << 8) | lower;
+        self.reg.pc = self.read_word(0xFFFC);
 
         self.cycles = 8;
     }
 
-    fn irq(&mut self) {
+    pub fn irq(&mut self) {
         if self.reg.get_flag(StatusFlag::NoInterrupts) {
             return;
         }
@@ -235,6 +232,17 @@ impl Cpu {
         self.push(self.reg.p);
 
         self.reg.pc = self.read_word(0xFFFE);
+        self.cycles = 7;
+    }
+
+    pub fn nmi(&mut self) {
+        self.push_word(self.reg.pc);
+
+        self.reg.set_flag(StatusFlag::Break, false);
+        self.reg.set_flag(StatusFlag::NoInterrupts, false);
+        self.push(self.reg.p);
+
+        self.reg.pc = self.read_word(0xFFFA);
         self.cycles = 7;
     }
 
@@ -282,11 +290,7 @@ impl Cpu {
 
     fn fetch_indirect_x(&mut self) -> u16 {
         let ptr = self.fetch() as u16;
-
-        let lower = self.read((ptr + self.reg.x as u16) & 0x00FF) as u16;
-        let upper = self.read((ptr + self.reg.x as u16 + 1) & 0x00FF) as u16;
-
-        (upper << 8) | lower
+        self.read_word(ptr + self.reg.x as u16 & 0xFF);
     }
 
     fn fetch_indirect_y(&mut self) -> u16 {
@@ -447,9 +451,7 @@ impl Cpu {
         self.push(self.reg.p);
         self.reg.set_flag(StatusFlag::Break, false);
 
-        let lower = self.read(0xFFFE) as u16;
-        let upper = self.read(0xFFFF) as u16;
-        self.reg.pc = (upper << 8) | lower
+        self.reg.pc = self.read_word(0xFFFE);
     }
 
     fn bvc(&mut self, op: Operand) {
