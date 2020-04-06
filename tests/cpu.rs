@@ -53,15 +53,19 @@ fn nestest() {
 
     let bus = Bus::from_ram(ram);
     let mut cpu = Cpu::new(bus, Default::default());
+    cpu.reset();
     cpu.reg.pc = 0xC000;
     cpu.reg.p = 36;
 
-    while let Some(line) = log.iter().next() {
+    let mut log = log.iter();
+    while let Some(line) = log.next() {
+        println!("Processing line {}", line);
         let cpu_reg = cpu.reg.clone();
-        cpu.clock();
+        let cpu_cycles = cpu.cycle_count.clone();
+        cpu.execute_instruction();
         let (cycles, reg) = parse_log_line(line.to_string()).expect("failed to parse log line");
 
         assert_eq!(reg, cpu_reg);
-        assert_eq!(cycles, cpu.cycle_count);
+        assert_eq!(cycles, cpu_cycles);
     }
 }

@@ -111,6 +111,15 @@ impl Cpu {
         }
     }
 
+    pub fn execute_instruction(&mut self) {
+        loop {
+            self.clock();
+            if self.cycles == 0 {
+                break;
+            }
+        }
+    }
+
     pub fn clock(&mut self) {
         if self.cycles > 0 {
             self.cycles -= 1;
@@ -118,13 +127,15 @@ impl Cpu {
         }
 
         let opcode = self.fetch();
-        println!("opcode = {:x}", opcode);
         let (opcode, raw_opcode) = (&opcode::OPCODES[opcode as usize], opcode);
 
         self.cycles = opcode.cycles;
 
-        println!("Processing opcode: {:?}. reg = {:?}", opcode, self.reg);
         let operand = self.fetch_operand(opcode);
+        println!(
+            "Processing opcode: {:?}. reg = {:?} operand = {:?}",
+            opcode, self.reg, operand
+        );
         self.execute_op(opcode, operand, raw_opcode);
         self.cycle_count += self.cycles as u32;
     }
@@ -222,7 +233,8 @@ impl Cpu {
         let addr = 0xFFFC;
         self.reg.pc = self.read_word(0xFFFC);
 
-        self.cycles = 8;
+        self.cycles = 7;
+        self.cycle_count = 7;
     }
 
     pub fn irq(&mut self) {
