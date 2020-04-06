@@ -16,7 +16,7 @@ pub enum StatusFlag {
     Negative = 1 << 7,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Registers {
     pub a: u8,
     pub x: u8,
@@ -118,6 +118,7 @@ impl Cpu {
         }
 
         let opcode = self.fetch();
+        println!("opcode = {:x}", opcode);
         let (opcode, raw_opcode) = (&opcode::OPCODES[opcode as usize], opcode);
 
         self.cycles = opcode.cycles;

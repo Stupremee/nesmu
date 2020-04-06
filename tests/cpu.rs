@@ -13,7 +13,10 @@ fn load_nestest() -> Result<Vec<u8>, io::Error> {
     let mut read = BufReader::new(file);
     let mut buf = Vec::new();
     read.read_to_end(&mut buf)?;
-    Ok(buf)
+
+    let prg_size = buf[5] as usize * 16384;
+    let prg = &buf[16..=prg_size];
+    Ok(prg.to_vec())
 }
 
 fn load_nestest_log() -> Result<Vec<String>, io::Error> {
@@ -26,13 +29,13 @@ fn load_nestest_log() -> Result<Vec<String>, io::Error> {
 }
 
 fn parse_log_line(line: String) -> Result<(u32, Registers), Box<dyn std::error::Error>> {
-    let pc = line[0..4].parse::<u16>()?;
-    let a = line[50..=51].parse::<u8>()?;
-    let x = line[55..=56].parse::<u8>()?;
-    let y = line[60..=61].parse::<u8>()?;
-    let p = line[65..=66].parse::<u8>()?;
-    let sp = line[71..=72].parse::<u8>()?;
-    let cycle = line[90..line.len()].parse::<u32>()?;
+    let pc = u16::from_str_radix(&line[0..4], 16)?;
+    let a = u8::from_str_radix(&line[50..=51], 16)?;
+    let x = u8::from_str_radix(&line[55..=56], 16)?;
+    let y = u8::from_str_radix(&line[60..=61], 16)?;
+    let p = u8::from_str_radix(&line[65..=66], 16)?;
+    let sp = u8::from_str_radix(&line[71..=72], 16)?;
+    let cycle = u32::from_str_radix(&line[90..line.len()], 16)?;
     Ok((cycle, Registers { pc, a, x, y, p, sp }))
 }
 
@@ -40,7 +43,7 @@ fn parse_log_line(line: String) -> Result<(u32, Registers), Box<dyn std::error::
 fn nestest() {
     let rom = load_nestest().expect("Failed to read nestest file");
     let log = load_nestest_log().expect("Failed to read nestest log file");
-    let mut offset = 0x8000;
+    let mut offset = 0xC000;
     let mut ram = [0u8; 0x10000];
 
     for b in rom.iter() {
@@ -51,13 +54,14 @@ fn nestest() {
     let bus = Bus::from_ram(ram);
     let mut cpu = Cpu::new(bus, Default::default());
     cpu.reg.pc = 0xC000;
+    cpu.reg.p = 36;
 
     while let Some(line) = log.iter().next() {
+        let cpu_reg = cpu.reg.clone();
+        cpu.clock();
         let (cycles, reg) = parse_log_line(line.to_string()).expect("failed to parse log line");
 
-        assert_eq!(reg, cpu.reg);
+        assert_eq!(reg, cpu_reg);
         assert_eq!(cycles, cpu.cycle_count);
-
-        cpu.clock();
     }
 }
