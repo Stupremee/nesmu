@@ -16,7 +16,7 @@ pub enum StatusFlag {
     Negative = 1 << 7,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Registers {
     pub a: u8,
     pub x: u8,
@@ -98,6 +98,7 @@ pub struct Cpu {
     pub bus: Bus,
     pub reg: Registers,
     pub cycles: u8,
+    pub cycle_count: u32,
 }
 
 impl Cpu {
@@ -106,6 +107,7 @@ impl Cpu {
             bus,
             reg,
             cycles: 0,
+            cycle_count: 0,
         }
     }
 
@@ -123,6 +125,7 @@ impl Cpu {
         println!("Processing opcode: {:?}. reg = {:?}", opcode, self.reg);
         let operand = self.fetch_operand(opcode);
         self.execute_op(opcode, operand, raw_opcode);
+        self.cycle_count += self.cycles as u32;
     }
 
     fn execute_op(&mut self, code: &Opcode, op: Operand, raw: u8) {
@@ -290,7 +293,7 @@ impl Cpu {
 
     fn fetch_indirect_x(&mut self) -> u16 {
         let ptr = self.fetch() as u16;
-        self.read_word(ptr + self.reg.x as u16 & 0xFF);
+        self.read_word(ptr + self.reg.x as u16 & 0xFF)
     }
 
     fn fetch_indirect_y(&mut self) -> u16 {
