@@ -53,7 +53,7 @@ impl Default for Registers {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Operand {
     Accumulator,
     XRegister,
@@ -132,12 +132,12 @@ impl Cpu {
         self.cycles = opcode.cycles;
 
         let operand = self.fetch_operand(opcode);
-        println!(
-            "Processing opcode: {:?}. reg = {:?} operand = {:?}",
-            opcode, self.reg, operand
-        );
-        self.execute_op(opcode, operand, raw_opcode);
+        self.execute_op(opcode, operand.clone(), raw_opcode);
         self.cycle_count += self.cycles as u32;
+        println!(
+            "Processing opcode: {:?}. reg = {:?} operand = {:?} cycles = {:?}",
+            opcode, self.reg, operand, self.cycle_count
+        );
     }
 
     fn execute_op(&mut self, code: &Opcode, op: Operand, raw: u8) {

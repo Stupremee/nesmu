@@ -59,20 +59,18 @@ fn nestest() {
 
     let mut log = log.iter();
 
-    let line = log.next();
-    let (cycles, reg) =
-        parse_log_line(line.unwrap().to_string()).expect("failed to parse log line");
+    // let (cycles, reg) =
+    //     parse_log_line(line.unwrap().to_string()).expect("failed to parse log line");
 
-    assert_eq!(reg, cpu.reg);
-    assert_eq!(cycles, cpu.cycle_count);
-    cpu.execute_instruction();
+    // assert_eq!(reg, cpu.reg);
+    // assert_eq!(cycles, cpu.cycle_count);
+    // cpu.execute_instruction();
 
     while let Some(line) = log.next() {
         println!("Processing line {}", line);
-        // let cpu_reg = cpu.reg.clone();
-        // let cpu_cycles = cpu.cycle_count.clone();
-        cpu.execute_instruction();
         let (cycles, reg) = parse_log_line(line.to_string()).expect("failed to parse log line");
+
+        cpu.execute_instruction();
 
         assert_eq!(reg, cpu.reg);
         assert_eq!(cycles, cpu.cycle_count);
