@@ -578,6 +578,7 @@ impl Cpu {
 
     fn jmp(&mut self, op: Operand) {
         self.reg.pc = op.absolute_addr(self).unwrap();
+        println!("Jumped to {}", self.reg.pc);
     }
 
     fn jsr(&mut self, op: Operand) {

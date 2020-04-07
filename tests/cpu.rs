@@ -35,7 +35,7 @@ fn parse_log_line(line: String) -> Result<(u32, Registers), Box<dyn std::error::
     let y = u8::from_str_radix(&line[60..=61], 16)?;
     let p = u8::from_str_radix(&line[65..=66], 16)?;
     let sp = u8::from_str_radix(&line[71..=72], 16)?;
-    let cycle = u32::from_str_radix(&line[90..line.len()], 16)?;
+    let cycle = u32::from_str_radix(&line[90..line.len()], 10)?;
     Ok((cycle, Registers { pc, a, x, y, p, sp }))
 }
 
@@ -58,14 +58,23 @@ fn nestest() {
     cpu.reg.p = 36;
 
     let mut log = log.iter();
+
+    let line = log.next();
+    let (cycles, reg) =
+        parse_log_line(line.unwrap().to_string()).expect("failed to parse log line");
+
+    assert_eq!(reg, cpu.reg);
+    assert_eq!(cycles, cpu.cycle_count);
+    cpu.execute_instruction();
+
     while let Some(line) = log.next() {
         println!("Processing line {}", line);
-        let cpu_reg = cpu.reg.clone();
-        let cpu_cycles = cpu.cycle_count.clone();
+        // let cpu_reg = cpu.reg.clone();
+        // let cpu_cycles = cpu.cycle_count.clone();
         cpu.execute_instruction();
         let (cycles, reg) = parse_log_line(line.to_string()).expect("failed to parse log line");
 
-        assert_eq!(reg, cpu_reg);
-        assert_eq!(cycles, cpu_cycles);
+        assert_eq!(reg, cpu.reg);
+        assert_eq!(cycles, cpu.cycle_count);
     }
 }
