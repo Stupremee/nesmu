@@ -99,6 +99,7 @@ pub struct Cpu {
     pub reg: Registers,
     pub cycles: u8,
     pub cycle_count: u32,
+    pub additional_cycle: bool,
 }
 
 impl Cpu {
@@ -108,6 +109,7 @@ impl Cpu {
             reg,
             cycles: 0,
             cycle_count: 0,
+            additional_cycle: false,
         }
     }
 
@@ -131,8 +133,15 @@ impl Cpu {
 
         self.cycles = opcode.cycles;
 
+        self.additional_cycle = false;
         let operand = self.fetch_operand(opcode);
         self.execute_op(opcode, operand.clone(), raw_opcode);
+
+        if self.additional_cycle {
+            println!("add cycle");
+            self.cycles += 1;
+        }
+
         self.cycle_count += self.cycles as u32;
         println!(
             "Processing opcode: {:?}. reg = {:?} operand = {:?} cycles = {:?}",
@@ -280,11 +289,13 @@ impl Cpu {
     }
 
     fn fetch_absolute(&mut self, offset: u8) -> u16 {
-        let base = self.fetch_word();
-        let addr = base + offset as u16;
+        let lower = self.fetch() as u16;
+        let upper = self.fetch() as u16;
+        let addr = (upper << 8) | lower;
+        let addr = addr.wrapping_add(offset as u16);
 
-        if (addr & 0xFF00) != (base & 0xFF00) {
-            self.cycles += 1;
+        if (addr & 0xFF00) != (upper << 8) {
+            self.additional_cycle = true;
         }
         addr
     }
@@ -295,31 +306,37 @@ impl Cpu {
 
         let ptr = (upper << 8) | lower;
 
-        let (lower, upper) = if lower == 0xFF {
+        let (upper, lower) = if lower == 0xFF {
             (self.read(ptr & 0xFF00) as u16, self.read(ptr) as u16)
         } else {
-            (self.read(ptr & 1) as u16, self.read(ptr) as u16)
+            (self.read(ptr + 1) as u16, self.read(ptr) as u16)
         };
 
-        (upper << 8) | lower
+        let addr = (upper << 8) | lower;
+        addr
     }
 
     fn fetch_indirect_x(&mut self) -> u16 {
         let ptr = self.fetch() as u16;
-        self.read_word(ptr + self.reg.x as u16 & 0xFF)
+
+        let x = self.reg.x as u16;
+        let lower = self.read(ptr + x & 0x00FF) as u16;
+        let upper = self.read((ptr + x + 1) & 0x00FF) as u16;
+
+        (upper << 8) | lower
     }
 
     fn fetch_indirect_y(&mut self) -> u16 {
         let ptr = self.fetch() as u16;
 
-        let lower = self.read(ptr & 0x00FF) as u16;
-        let upper = self.read((ptr + 1) & 0x00FF) as u16;
+        let lower = self.read(ptr & 0xFF) as u16;
+        let upper = self.read((ptr + 1) & 0xFF) as u16;
 
         let addr = (upper << 8) | lower;
-        let addr = addr + self.reg.y as u16;
+        let addr = addr.wrapping_add(self.reg.y as u16);
 
         if (addr & 0xFF00) != (upper << 8) {
-            self.cycles += 1;
+            self.additional_cycle = true;
         }
 
         addr
@@ -378,9 +395,11 @@ impl Cpu {
         let v = !(a ^ fetched) & (a ^ val) & 0x80;
         self.reg.set_flag(StatusFlag::Overflow, v != 0);
         self.reg.set_flag(StatusFlag::Carry, (val & 0x100) != 0);
-        self.reg.set_flag(StatusFlag::Zero, val == 0);
+        self.reg.set_flag(StatusFlag::Zero, val & 0xFF == 0);
         self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
         self.reg.a = val as u8;
+
+        self.additional_cycle &= true;
     }
 
     fn and(&mut self, op: Operand) {
@@ -391,6 +410,8 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Zero, val == 0);
 
         self.reg.a = val;
+
+        self.additional_cycle &= true;
     }
 
     fn asl(&mut self, op: Operand) {
@@ -498,15 +519,16 @@ impl Cpu {
         let val = op.read(self).unwrap();
         let reg = reg.read(self).unwrap();
 
-        let diff = reg as i16 - val as i16;
-        self.reg.set_flag(StatusFlag::Carry, diff >= 0);
-        self.reg.set_flag(StatusFlag::Zero, diff == 0);
+        let diff = (reg as u16).wrapping_sub(val as u16);
+        self.reg.set_flag(StatusFlag::Carry, reg >= val);
+        self.reg.set_flag(StatusFlag::Zero, diff & 0xFF == 0);
         self.reg.set_flag(StatusFlag::Negative, diff & 0x80 != 0);
     }
 
     #[inline]
     fn cmp(&mut self, op: Operand) {
         self.compare(op, Operand::Accumulator);
+        self.additional_cycle &= true;
     }
 
     #[inline]
@@ -547,35 +569,35 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
 
         self.reg.a = val;
+        self.additional_cycle &= true;
     }
 
     fn inc(&mut self, op: Operand) {
-        let val = op.read(self).unwrap() as i16;
-        let val = val + 1;
+        let val = op.read(self).unwrap();
+        let val = val.wrapping_add(1);
 
         self.reg.set_flag(StatusFlag::Zero, val == 0);
         self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
 
-        op.write(self, val as u8);
+        op.write(self, val);
     }
 
     #[inline]
     fn inx(&mut self) {
-        self.dec(Operand::XRegister);
+        self.inc(Operand::XRegister);
     }
 
     #[inline]
     fn iny(&mut self) {
-        self.dec(Operand::YRegister);
+        self.inc(Operand::YRegister);
     }
 
     fn jmp(&mut self, op: Operand) {
         self.reg.pc = op.absolute_addr(self).unwrap();
-        println!("Jumped to {}", self.reg.pc);
     }
 
     fn jsr(&mut self, op: Operand) {
-        self.push_word(self.reg.pc);
+        self.push_word(self.reg.pc - 1);
         self.reg.pc = op.absolute_addr(self).unwrap();
     }
 
@@ -591,16 +613,19 @@ impl Cpu {
     #[inline]
     fn lda(&mut self, op: Operand) {
         self.ld_reg(op, Operand::Accumulator);
+        self.additional_cycle &= true;
     }
 
     #[inline]
     fn ldx(&mut self, op: Operand) {
         self.ld_reg(op, Operand::XRegister);
+        self.additional_cycle &= true;
     }
 
     #[inline]
     fn ldy(&mut self, op: Operand) {
         self.ld_reg(op, Operand::YRegister);
+        self.additional_cycle &= true;
     }
 
     fn lsr(&mut self, op: Operand) {
@@ -624,6 +649,7 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
 
         self.reg.a = val;
+        self.additional_cycle &= true;
     }
 
     fn pha(&mut self) {
@@ -652,47 +678,52 @@ impl Cpu {
     }
 
     fn rol(&mut self, op: Operand) {
-        let val = op.read(self).unwrap() as u16;
-        let val = (val << 1) | self.reg.get_flag(StatusFlag::Carry) as u16;
+        let fetched = op.read(self).unwrap();
+        let carry = self.reg.get_flag(StatusFlag::Carry) as u8;
+        let val = (fetched << 1) | carry;
 
-        self.reg.set_flag(StatusFlag::Carry, val & 0xFF00 != 0);
-        self.reg.set_flag(StatusFlag::Zero, val & 0xFF == 0);
+        self.reg.set_flag(StatusFlag::Carry, fetched & 0x80 != 0);
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
         self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
 
-        op.write(self, val as u8);
+        op.write(self, val);
     }
 
     fn ror(&mut self, op: Operand) {
-        let val = op.read(self).unwrap() as u16;
-        let val = (self.reg.get_flag(StatusFlag::Carry) as u16) << 1 | val as u16 >> 1;
+        let fetched = op.read(self).unwrap() as u16;
+        let carry = self.reg.get_flag(StatusFlag::Carry) as u8;
+        let val = (self.reg.a >> 1) | (carry << 7);
 
-        self.reg.set_flag(StatusFlag::Carry, val & 0x01 != 0);
-        self.reg.set_flag(StatusFlag::Zero, val & 0xFF == 0);
-        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
+        self.reg.set_flag(StatusFlag::Carry, fetched & 0x01 != 0);
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
+        self.reg.set_flag(StatusFlag::Negative, carry != 0);
 
-        op.write(self, val as u8);
+        op.write(self, val);
     }
 
     fn rti(&mut self) {
         self.reg.p = self.pop();
+        self.reg.set_flag(StatusFlag::Unused, true);
         self.reg.pc = self.pop_word();
     }
 
     fn rts(&mut self) {
-        self.reg.pc = self.pop_word();
+        self.reg.pc = self.pop_word() + 1;
     }
 
     fn sbc(&mut self, op: Operand) {
         let fetched = op.read(self).unwrap() as u16;
         let a = self.reg.a as u16;
-        let val = a + !fetched + self.reg.get_flag(StatusFlag::Carry) as u16;
+        let val = a + (!fetched & 0xFF) + self.reg.get_flag(StatusFlag::Carry) as u16;
 
-        let v = !(a ^ fetched) & (a ^ val) & 0x80;
+        let v = (a ^ fetched) & (a ^ val) & 0x80;
         self.reg.set_flag(StatusFlag::Overflow, v != 0);
         self.reg.set_flag(StatusFlag::Carry, (val & 0x100) != 0);
-        self.reg.set_flag(StatusFlag::Zero, val == 0);
+        self.reg.set_flag(StatusFlag::Zero, val & 0xFF == 0);
         self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
         self.reg.a = val as u8;
+
+        self.additional_cycle &= true;
     }
 
     fn sec(&mut self) {
@@ -725,25 +756,29 @@ impl Cpu {
     fn tax(&mut self) {
         self.reg.x = self.reg.a;
         self.reg.set_flag(StatusFlag::Zero, self.reg.x == 0);
-        self.reg.set_flag(StatusFlag::Zero, self.reg.x & 0x80 != 1);
+        self.reg
+            .set_flag(StatusFlag::Negative, self.reg.x & 0x80 != 0);
     }
 
     fn tay(&mut self) {
         self.reg.y = self.reg.a;
         self.reg.set_flag(StatusFlag::Zero, self.reg.y == 0);
-        self.reg.set_flag(StatusFlag::Zero, self.reg.y & 0x80 != 1);
+        self.reg
+            .set_flag(StatusFlag::Negative, self.reg.y & 0x80 != 0);
     }
 
     fn tsx(&mut self) {
         self.reg.x = self.reg.sp;
         self.reg.set_flag(StatusFlag::Zero, self.reg.x == 0);
-        self.reg.set_flag(StatusFlag::Zero, self.reg.x & 0x80 != 1);
+        self.reg
+            .set_flag(StatusFlag::Negative, self.reg.x & 0x80 != 0);
     }
 
     fn txa(&mut self) {
         self.reg.a = self.reg.x;
         self.reg.set_flag(StatusFlag::Zero, self.reg.a == 0);
-        self.reg.set_flag(StatusFlag::Zero, self.reg.a & 0x80 != 1);
+        self.reg
+            .set_flag(StatusFlag::Negative, self.reg.a & 0x80 != 0);
     }
 
     fn txs(&mut self) {
@@ -753,6 +788,7 @@ impl Cpu {
     fn tya(&mut self) {
         self.reg.a = self.reg.y;
         self.reg.set_flag(StatusFlag::Zero, self.reg.a == 0);
-        self.reg.set_flag(StatusFlag::Zero, self.reg.a & 0x80 != 1);
+        self.reg
+            .set_flag(StatusFlag::Negative, self.reg.a & 0x80 != 0);
     }
 }
