@@ -372,17 +372,15 @@ impl Cpu {
 
     fn adc(&mut self, op: Operand) {
         let fetched = op.read(self).unwrap() as u16;
-        let val = fetched + self.reg.a as u16 + self.reg.get_flag(StatusFlag::Carry) as u16;
+        let a = self.reg.a as u16;
+        let val = a + fetched + self.reg.get_flag(StatusFlag::Carry) as u16;
 
-        self.reg.set_flag(StatusFlag::Carry, val > 255);
-        self.reg.set_flag(StatusFlag::Zero, (val & 0xFF) == 0);
-        self.reg.set_flag(
-            StatusFlag::Overflow,
-            (!(self.reg.a as u16 ^ fetched) & (self.reg.a as u16 ^ val) & 0x80) != 0,
-        );
+        let v = !(a ^ fetched) & (a ^ val) & 0x80;
+        self.reg.set_flag(StatusFlag::Overflow, v != 0);
+        self.reg.set_flag(StatusFlag::Carry, (val & 0x100) != 0);
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
         self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
-
-        op.write(self, val as u8);
+        self.reg.a = val as u8;
     }
 
     fn and(&mut self, op: Operand) {
@@ -392,7 +390,7 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
         self.reg.set_flag(StatusFlag::Zero, val == 0);
 
-        op.write(self, val);
+        self.reg.a = val;
     }
 
     fn asl(&mut self, op: Operand) {
@@ -498,17 +496,12 @@ impl Cpu {
 
     fn compare(&mut self, op: Operand, reg: Operand) {
         let val = op.read(self).unwrap();
-        let reg = op.read(self).unwrap();
+        let reg = reg.read(self).unwrap();
 
         let diff = reg as i16 - val as i16;
-        if diff == 0 {
-            self.reg.set_flag(StatusFlag::Carry, true);
-            self.reg.set_flag(StatusFlag::Zero, true);
-        } else if diff > 0 {
-            self.reg.set_flag(StatusFlag::Carry, true);
-        } else if val & 0x80 != 0 {
-            self.reg.set_flag(StatusFlag::Negative, true);
-        }
+        self.reg.set_flag(StatusFlag::Carry, diff >= 0);
+        self.reg.set_flag(StatusFlag::Zero, diff == 0);
+        self.reg.set_flag(StatusFlag::Negative, diff & 0x80 != 0);
     }
 
     #[inline]
@@ -638,7 +631,10 @@ impl Cpu {
     }
 
     fn php(&mut self) {
+        self.reg.set_flag(StatusFlag::Unused, true);
+        self.reg.set_flag(StatusFlag::Break, true);
         self.push(self.reg.p);
+        self.reg.set_flag(StatusFlag::Break, false);
     }
 
     fn pla(&mut self) {
@@ -651,6 +647,8 @@ impl Cpu {
     fn plp(&mut self) {
         let val = self.pop();
         self.reg.p = val;
+        self.reg.set_flag(StatusFlag::Unused, true);
+        self.reg.set_flag(StatusFlag::Break, false);
     }
 
     fn rol(&mut self, op: Operand) {
@@ -686,17 +684,14 @@ impl Cpu {
 
     fn sbc(&mut self, op: Operand) {
         let fetched = op.read(self).unwrap() as u16;
-        let fetched = fetched ^ 0xFF;
-        let val = self.reg.a as u16 + fetched + self.reg.get_flag(StatusFlag::Zero) as u16;
+        let a = self.reg.a as u16;
+        let val = a + !fetched + self.reg.get_flag(StatusFlag::Carry) as u16;
 
-        self.reg.set_flag(StatusFlag::Carry, val & 0xFF00 != 0);
-        self.reg.set_flag(StatusFlag::Zero, val & 0xFF == 0);
-        self.reg.set_flag(
-            StatusFlag::Overflow,
-            (val ^ self.reg.a as u16) & (val ^ fetched) & 0x80 != 0,
-        );
-        self.reg.set_flag(StatusFlag::Negative, (val & 0x80) != 0);
-
+        let v = !(a ^ fetched) & (a ^ val) & 0x80;
+        self.reg.set_flag(StatusFlag::Overflow, v != 0);
+        self.reg.set_flag(StatusFlag::Carry, (val & 0x100) != 0);
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
+        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
         self.reg.a = val as u8;
     }
 
