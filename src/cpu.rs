@@ -138,7 +138,6 @@ impl Cpu {
         self.execute_op(opcode, operand.clone(), raw_opcode);
 
         if self.additional_cycle {
-            println!("add cycle");
             self.cycles += 1;
         }
 
@@ -184,7 +183,7 @@ impl Cpu {
             Instruction::LDX => self.ldx(op),
             Instruction::LDY => self.ldy(op),
             Instruction::LSR => self.lsr(op),
-            Instruction::NOP => self.nop(),
+            Instruction::NOP => self.nop(raw),
             Instruction::ORA => self.ora(op),
             Instruction::PHA => self.pha(),
             Instruction::PHP => self.php(),
@@ -207,10 +206,7 @@ impl Cpu {
             Instruction::TXA => self.txa(),
             Instruction::TXS => self.txs(),
             Instruction::TYA => self.tya(),
-            Instruction::XXX => panic!(
-                "Invalid opcode received. Opcode = {:?} Raw = {:x}",
-                code, raw
-            ),
+            Instruction::XXX => self.nop(raw),
         };
     }
 
@@ -667,8 +663,11 @@ impl Cpu {
         self.additional_cycle &= false;
     }
 
-    fn nop(&mut self) {
-        self.additional_cycle &= false;
+    fn nop(&mut self, op: u8) {
+        self.additional_cycle &= match op {
+            0x1C | 0x3C | 0x5C | 0x7C | 0xDC | 0xFC => true,
+            _ => false,
+        }
     }
 
     fn ora(&mut self, op: Operand) {
