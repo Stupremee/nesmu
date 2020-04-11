@@ -423,6 +423,7 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Carry, fetched & 0x80 != 0);
 
         op.write(self, val);
+        self.additional_cycle &= false;
     }
 
     fn branch(&mut self, op: Operand, condition: bool) {
@@ -436,6 +437,7 @@ impl Cpu {
 
             self.reg.pc = addr;
         }
+        self.additional_cycle &= false;
     }
 
     fn bcc(&mut self, op: Operand) {
@@ -460,6 +462,8 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Zero, val == 0);
         self.reg.set_flag(StatusFlag::Overflow, fetched & 0x40 != 0);
         self.reg.set_flag(StatusFlag::Negative, fetched & 0x80 != 0);
+
+        self.additional_cycle &= false;
     }
 
     fn bmi(&mut self, op: Operand) {
@@ -487,6 +491,8 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Break, false);
 
         self.reg.pc = self.read_word(0xFFFE);
+
+        self.additional_cycle &= false;
     }
 
     fn bvc(&mut self, op: Operand) {
@@ -501,18 +507,26 @@ impl Cpu {
 
     fn clc(&mut self) {
         self.reg.set_flag(StatusFlag::Carry, false);
+
+        self.additional_cycle &= false;
     }
 
     fn cld(&mut self) {
         self.reg.set_flag(StatusFlag::Decimal, false);
+
+        self.additional_cycle &= false;
     }
 
     fn cli(&mut self) {
         self.reg.set_flag(StatusFlag::NoInterrupts, false);
+
+        self.additional_cycle &= false;
     }
 
     fn clv(&mut self) {
         self.reg.set_flag(StatusFlag::Overflow, false);
+
+        self.additional_cycle &= false;
     }
 
     fn compare(&mut self, op: Operand, reg: Operand) {
@@ -534,11 +548,15 @@ impl Cpu {
     #[inline]
     fn cpx(&mut self, op: Operand) {
         self.compare(op, Operand::XRegister);
+
+        self.additional_cycle &= false;
     }
 
     #[inline]
     fn cpy(&mut self, op: Operand) {
         self.compare(op, Operand::YRegister);
+
+        self.additional_cycle &= false;
     }
 
     fn dec(&mut self, op: Operand) {
@@ -549,6 +567,8 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
 
         op.write(self, val as u8);
+
+        self.additional_cycle &= false;
     }
 
     #[inline]
@@ -580,6 +600,8 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
 
         op.write(self, val);
+
+        self.additional_cycle &= false;
     }
 
     #[inline]
@@ -594,11 +616,15 @@ impl Cpu {
 
     fn jmp(&mut self, op: Operand) {
         self.reg.pc = op.absolute_addr(self).unwrap();
+
+        self.additional_cycle &= false;
     }
 
     fn jsr(&mut self, op: Operand) {
         self.push_word(self.reg.pc - 1);
         self.reg.pc = op.absolute_addr(self).unwrap();
+
+        self.additional_cycle &= false;
     }
 
     fn ld_reg(&mut self, op: Operand, reg: Operand) {
@@ -637,9 +663,13 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Carry, fetched & 0x1 != 0);
 
         op.write(self, val);
+
+        self.additional_cycle &= false;
     }
 
-    fn nop(&mut self) {}
+    fn nop(&mut self) {
+        self.additional_cycle &= false;
+    }
 
     fn ora(&mut self, op: Operand) {
         let val = op.read(self).unwrap();
@@ -654,6 +684,8 @@ impl Cpu {
 
     fn pha(&mut self) {
         self.push(self.reg.a);
+
+        self.additional_cycle &= false;
     }
 
     fn php(&mut self) {
@@ -661,6 +693,8 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Break, true);
         self.push(self.reg.p);
         self.reg.set_flag(StatusFlag::Break, false);
+
+        self.additional_cycle &= false;
     }
 
     fn pla(&mut self) {
@@ -668,6 +702,8 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Zero, val == 0);
         self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
         self.reg.a = val;
+
+        self.additional_cycle &= false;
     }
 
     fn plp(&mut self) {
@@ -675,6 +711,8 @@ impl Cpu {
         self.reg.p = val;
         self.reg.set_flag(StatusFlag::Unused, true);
         self.reg.set_flag(StatusFlag::Break, false);
+
+        self.additional_cycle &= false;
     }
 
     fn rol(&mut self, op: Operand) {
@@ -687,6 +725,8 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
 
         op.write(self, val);
+
+        self.additional_cycle &= false;
     }
 
     fn ror(&mut self, op: Operand) {
@@ -699,16 +739,22 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Negative, carry != 0);
 
         op.write(self, val);
+
+        self.additional_cycle &= false;
     }
 
     fn rti(&mut self) {
         self.reg.p = self.pop();
         self.reg.set_flag(StatusFlag::Unused, true);
         self.reg.pc = self.pop_word();
+
+        self.additional_cycle &= false;
     }
 
     fn rts(&mut self) {
         self.reg.pc = self.pop_word() + 1;
+
+        self.additional_cycle &= false;
     }
 
     fn sbc(&mut self, op: Operand) {
@@ -728,29 +774,41 @@ impl Cpu {
 
     fn sec(&mut self) {
         self.reg.set_flag(StatusFlag::Carry, true);
+
+        self.additional_cycle &= false;
     }
 
     fn sed(&mut self) {
         self.reg.set_flag(StatusFlag::Decimal, true);
+
+        self.additional_cycle &= false;
     }
 
     fn sei(&mut self) {
         self.reg.set_flag(StatusFlag::NoInterrupts, true);
+
+        self.additional_cycle &= false;
     }
 
     fn sta(&mut self, op: Operand) {
         let val = self.reg.a;
         op.write(self, val);
+
+        self.additional_cycle &= false;
     }
 
     fn stx(&mut self, op: Operand) {
         let val = self.reg.x;
         op.write(self, val);
+
+        self.additional_cycle &= false;
     }
 
     fn sty(&mut self, op: Operand) {
         let val = self.reg.y;
         op.write(self, val);
+
+        self.additional_cycle &= false;
     }
 
     fn tax(&mut self) {
@@ -758,6 +816,8 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Zero, self.reg.x == 0);
         self.reg
             .set_flag(StatusFlag::Negative, self.reg.x & 0x80 != 0);
+
+        self.additional_cycle &= false;
     }
 
     fn tay(&mut self) {
@@ -765,6 +825,8 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Zero, self.reg.y == 0);
         self.reg
             .set_flag(StatusFlag::Negative, self.reg.y & 0x80 != 0);
+
+        self.additional_cycle &= false;
     }
 
     fn tsx(&mut self) {
@@ -772,6 +834,8 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Zero, self.reg.x == 0);
         self.reg
             .set_flag(StatusFlag::Negative, self.reg.x & 0x80 != 0);
+
+        self.additional_cycle &= false;
     }
 
     fn txa(&mut self) {
@@ -779,10 +843,14 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Zero, self.reg.a == 0);
         self.reg
             .set_flag(StatusFlag::Negative, self.reg.a & 0x80 != 0);
+
+        self.additional_cycle &= false;
     }
 
     fn txs(&mut self) {
         self.reg.sp = self.reg.x;
+
+        self.additional_cycle &= false;
     }
 
     fn tya(&mut self) {
@@ -790,5 +858,7 @@ impl Cpu {
         self.reg.set_flag(StatusFlag::Zero, self.reg.a == 0);
         self.reg
             .set_flag(StatusFlag::Negative, self.reg.a & 0x80 != 0);
+
+        self.additional_cycle &= false;
     }
 }
