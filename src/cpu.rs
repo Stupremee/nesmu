@@ -207,6 +207,9 @@ impl Cpu {
             Instruction::TXS => self.txs(),
             Instruction::TYA => self.tya(),
             Instruction::XXX => self.nop(raw),
+
+            // Illegal opcodes
+            Instruction::LAX => self.lax(op),
         };
     }
 
@@ -859,5 +862,19 @@ impl Cpu {
             .set_flag(StatusFlag::Negative, self.reg.a & 0x80 != 0);
 
         self.additional_cycle &= false;
+    }
+
+    // ====================
+    // Illegal opcodes
+    // ====================
+
+    fn lax(&mut self, op: Operand) {
+        let val = op.read(self).unwrap();
+
+        self.reg.set_flag(StatusFlag::Zero, val == 0);
+        self.reg.set_flag(StatusFlag::Negative, val & 0x80 != 0);
+
+        self.reg.a = val;
+        self.reg.x = val;
     }
 }

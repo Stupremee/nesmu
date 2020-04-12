@@ -199,11 +199,11 @@ pub const OPCODES: [Opcode; 256] = [
     opcode!(LDY, Immediate, 0xA0),
     opcode!(LDA, IndirectXIndexed, 0xA1),
     opcode!(LDX, Immediate, 0xA2),
-    Opcode::invalid(),
+    opcode!(LAX, IndirectXIndexed, 0xA3),
     opcode!(LDY, Zeropage, 0xA4),
     opcode!(LDA, Zeropage, 0xA5),
     opcode!(LDX, Zeropage, 0xA6),
-    Opcode::invalid(),
+    opcode!(LAX, Zeropage, 0xA7),
     opcode!(TAY, Implied, 0xA8),
     opcode!(LDA, Immediate, 0xA9),
     opcode!(TAX, Implied, 0xAA),
@@ -211,16 +211,16 @@ pub const OPCODES: [Opcode; 256] = [
     opcode!(LDY, Absolute, 0xAC),
     opcode!(LDA, Absolute, 0xAD),
     opcode!(LDX, Absolute, 0xAE),
-    Opcode::invalid(),
+    opcode!(LAX, Absolute, 0xAF),
     // ==========================
     opcode!(BCS, Relative, 0xB0),
     opcode!(LDA, IndirectYIndexed, 0xB1),
     Opcode::invalid(),
-    Opcode::invalid(),
+    opcode!(LAX, IndirectYIndexed, 0xB3),
     opcode!(LDY, ZeropageXIndexed, 0xB4),
     opcode!(LDA, ZeropageXIndexed, 0xB5),
     opcode!(LDX, ZeropageYIndexed, 0xB6),
-    Opcode::invalid(),
+    opcode!(LAX, ZeropageYIndexed, 0xB7),
     opcode!(CLV, Implied, 0xB8),
     opcode!(LDA, AbsoluteYIndexed, 0xB9),
     opcode!(TSX, Implied, 0xBA),
@@ -228,7 +228,7 @@ pub const OPCODES: [Opcode; 256] = [
     opcode!(LDY, AbsoluteXIndexed, 0xBC),
     opcode!(LDA, AbsoluteXIndexed, 0xBD),
     opcode!(LDX, AbsoluteYIndexed, 0xBE),
-    Opcode::invalid(),
+    opcode!(LAX, AbsoluteYIndexed, 0xBF),
     // ==========================
     opcode!(CPY, Immediate, 0xC0),
     opcode!(CMP, IndirectXIndexed, 0xC1),
@@ -375,6 +375,10 @@ pub enum Instruction {
     TXA,
     TXS,
     TYA,
+
+    // Illegal opcodes
+    LAX,
+
     XXX,
 }
 
