@@ -165,11 +165,11 @@ pub const OPCODES: [Opcode; 256] = [
     opcode!(NOP, Immediate, 0x80),
     opcode!(STA, IndirectXIndexed, 0x81),
     Opcode::invalid(),
-    Opcode::invalid(),
+    opcode!(SAX, IndirectXIndexed, 0x83),
     opcode!(STY, Zeropage, 0x84),
     opcode!(STA, Zeropage, 0x85),
     opcode!(STX, Zeropage, 0x86),
-    Opcode::invalid(),
+    opcode!(SAX, Zeropage, 0x87),
     opcode!(DEY, Implied, 0x88),
     Opcode::invalid(),
     opcode!(TXA, Implied, 0x8A),
@@ -177,7 +177,7 @@ pub const OPCODES: [Opcode; 256] = [
     opcode!(STY, Absolute, 0x8C),
     opcode!(STA, Absolute, 0x8D),
     opcode!(STX, Absolute, 0x8E),
-    Opcode::invalid(),
+    opcode!(SAX, Absolute, 0x8F),
     // ==========================
     opcode!(BCC, Relative, 0x90),
     opcode!(STA, IndirectYIndexed, 0x91),
@@ -186,7 +186,7 @@ pub const OPCODES: [Opcode; 256] = [
     opcode!(STY, ZeropageXIndexed, 0x94),
     opcode!(STA, ZeropageXIndexed, 0x95),
     opcode!(STX, ZeropageYIndexed, 0x96),
-    Opcode::invalid(),
+    opcode!(SAX, ZeropageYIndexed, 0x97),
     opcode!(TYA, Implied, 0x98),
     opcode!(STA, AbsoluteYIndexed, 0x99),
     opcode!(TXS, Implied, 0x9A),
@@ -375,9 +375,6 @@ pub enum Instruction {
     TXA,
     TXS,
     TYA,
-
-    // Illegal opcodes
-    LAX,
 
     XXX,
 }
