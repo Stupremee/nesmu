@@ -1,51 +1,28 @@
-// const RAM_SIZE: usize = 0x4000;
-const RAM_SIZE: usize = 0x10000;
+use crate::mem::{Memory, Ram};
 
+#[derive(Default)]
 pub struct Bus {
-    ram: [u8; RAM_SIZE],
+    ram: Ram,
 }
 
-impl Default for Bus {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-use std::fmt;
-
-impl fmt::Debug for Bus {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Bus {{ ram: REDACTED }}")
-    }
-}
-
-impl Bus {
-    pub fn new() -> Self {
-        Self {
-            ram: [0u8; RAM_SIZE],
+impl Memory for Bus {
+    fn read(&self, addr: u16) -> u8 {
+        match addr {
+            0x0000..=0x1FFF => self.ram.read(addr),
+            0x2000..=0x3FFF => todo!("read from ppu"),
+            0x4000..=0x4017 => todo!("read from apu or io registers"),
+            0x4018..=0x401F => panic!("this memory region is disabled"),
+            0x4020..=0xFFFF => todo!("read from cartridge"),
         }
     }
 
-    pub fn from_ram(ram: [u8; RAM_SIZE]) -> Self {
-        Self { ram }
-    }
-
-    pub fn read_word(&self, addr: u16) -> u16 {
-        let lower = self.read(addr) as u16;
-        let upper = self.read(addr + 1) as u16;
-        upper << 8 | lower
-    }
-
-    pub fn read(&self, addr: u16) -> u8 {
+    fn write(&mut self, addr: u16, val: u8) {
         match addr {
-            0x0000..=0xFFFF => self.ram[addr as usize],
-            _ => 0x0,
-        }
-    }
-
-    pub fn write(&mut self, addr: u16, val: u8) {
-        match addr {
-            0x0000..=0xFFFF => self.ram[addr as usize] = val,
+            0x0000..=0x1FFF => self.ram.write(addr, val),
+            0x2000..=0x3FFF => todo!("write from ppu"),
+            0x4000..=0x4017 => todo!("write from apu or io registers"),
+            0x4018..=0x401F => panic!("this memory region is disabled"),
+            0x4020..=0xFFFF => todo!("write from cartridge"),
         };
     }
 }

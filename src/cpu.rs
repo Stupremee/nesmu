@@ -1,4 +1,5 @@
 use crate::bus::Bus;
+use crate::mem::Memory;
 use crate::opcode::{self, AddressMode, Instruction, Opcode};
 
 const STACK_ADDRESS: u16 = 0x0100;
@@ -93,7 +94,7 @@ impl Operand {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct Cpu {
     pub bus: Bus,
     pub reg: Registers,
