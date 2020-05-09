@@ -1,8 +1,10 @@
+use crate::cartridge::Cartridge;
 use crate::mem::{Memory, Ram};
 
 #[derive(Default)]
 pub struct Bus {
     ram: Ram,
+    cartridge: Cartridge,
 }
 
 impl Memory for Bus {

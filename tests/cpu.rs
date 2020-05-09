@@ -51,8 +51,7 @@ fn nestest() {
         offset += 1;
     }
 
-    let bus = Bus::from_ram(ram);
-    let mut cpu = Cpu::new(bus, Default::default());
+    let mut cpu = Cpu::default();
     cpu.reset();
     cpu.reg.pc = 0xC000;
     cpu.reg.p = 36;
